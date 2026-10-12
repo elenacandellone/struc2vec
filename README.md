@@ -15,6 +15,12 @@
 >    dropped from the neighbourhood rings (in/out degrees were unaffected). On an edgelist with
 >    edges in arbitrary orientation this discards about half of the graph. Every edge now joins the
 >    skeleton; a repeated directed edge still triggers the duplicates warning.
+> 3. **`--seed` for reproducible runs** (v1.1). Each random-walk iteration gets its own seed derived
+>    from `--seed`, so the walks file is identical across runs and independent of how iterations are
+>    scheduled on worker processes (upstream's forked workers also started from the same random
+>    state, and walks were concatenated in completion order). word2vec gets the same seed and a
+>    process-independent hash; its multi-threaded training is only bitwise reproducible with
+>    `--workers 1`. Without `--seed` the behaviour is unchanged.
 >
 > struc2vec++ options on top of struc2vec:
 >
