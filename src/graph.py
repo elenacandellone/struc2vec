@@ -228,10 +228,15 @@ def load_edgelist(file_, directed=False, weighted=False):
 
     Returns: (dict, dict, dict)
         Returns skeleton, in_degrees, out_degrees. The latter two are empty if directed=False.
+
+    In the directed case every edge x -> y joins the skeleton as {x, y}, whichever way it points, so the
+    BFS rings are those of the underlying undirected graph.
     """
     skeleton = defaultdict(list)
     in_degrees = {}
     out_degrees = {}
+    directed_edges = set()
+    has_duplicates = False
     with open(file_) as f:
         for l in f:
             if len(l.strip().split()[:2]) > 1:
@@ -250,11 +255,16 @@ def load_edgelist(file_, directed=False, weighted=False):
                 if y not in skeleton:
                     skeleton[y] = []
 
-                if not directed or x < y:
+                if not directed or x != y:
                     skeleton[x].append(y)
                     skeleton[y].append(x)
 
                 if directed:
+                    # reciprocal edges (x -> y and y -> x) are both counted in the degrees;
+                    # only a repeated (x, y) pair is a duplicate
+                    if (x, y) in directed_edges:
+                        has_duplicates = True
+                    directed_edges.add((x, y))
                     in_degrees[y] = in_degrees.get(y, 0) + w
                     out_degrees[x] = out_degrees.get(x, 0) + w
 
@@ -264,31 +274,29 @@ def load_edgelist(file_, directed=False, weighted=False):
                 if x not in skeleton:
                     skeleton[x] = []
 
-    skeleton = verify_consistency_(skeleton, directed)
+    skeleton = verify_consistency_(skeleton, has_duplicates)
 
     return skeleton, in_degrees, out_degrees
 
 
-def verify_consistency_(skeleton, is_directed):
+def verify_consistency_(skeleton, has_duplicates):
     """
-    Remove duplicates from the graph skeleton and print a warning message if any duplicates were found,
-    as this will cause in_degrees and out_degrees to carry wrong values.
+    Remove duplicate neighbours from the graph skeleton (e.g. from reciprocal directed edges) and print a
+    warning message if the edgelist contained a repeated directed edge, as this will cause in_degrees and
+    out_degrees to carry wrong values.
     Args:
         skeleton: dict
             the graph dictionary
+        has_duplicates: boolean
+            whether a directed edge (x, y) appeared more than once in the edgelist
 
     Returns: dict
         the graph dictionary without duplicate neighbours
     """
     logging.info('Verifying consistency of edgelist ...')
-    cleaned_skeleton = remove_duplicates_(skeleton)
-    if is_directed:
-        for k, v in skeleton.iteritems():
-            if len(v) != len(cleaned_skeleton[k]):
-                print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
-                print('Example duplicates amongst the neighbours of node {}'.format(k))
-                break
-    return cleaned_skeleton
+    if has_duplicates:
+        print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
+    return remove_duplicates_(skeleton)
 
 
 def remove_duplicates_(graph_dict):
