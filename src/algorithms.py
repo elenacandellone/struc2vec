@@ -114,14 +114,29 @@ def exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amo
     return path
 
 
-def exec_random_walks_for_chunk(vertices, graphs, alias_method_j, alias_method_q, walk_length, amount_neighbours):
+def walk_seed(seed, walk_iter):
+    """
+    Seed for one walk iteration, derived from the run seed (None if unseeded). Seeding per iteration keeps
+    the walks independent of how iterations are scheduled on worker processes, and gives forked workers
+    different random streams.
+    """
+    if seed is None:
+        return None
+    return int(np.random.SeedSequence([seed, walk_iter]).generate_state(1)[0])
+
+
+def exec_random_walks_for_chunk(vertices, graphs, alias_method_j, alias_method_q, walk_length, amount_neighbours,
+                                seed=None):
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
     walks = deque()
     for v in vertices:
         walks.append(exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amount_neighbours))
     return walks
 
 
-def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices):
+def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices, seed=None):
     logging.info('Loading distances_nets from disk...')
 
     graphs = restore_variable_from_disk('distances_nets_graphs')
@@ -135,11 +150,12 @@ def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices
     walks = deque()
     vertices = list(vertices)
 
+    rng = random.Random(seed)
     for walk_iter in range(num_walks):
-        random.shuffle(vertices)
+        rng.shuffle(vertices)
         logging.info("Execution iteration {} ...".format(walk_iter))
         walk = exec_random_walks_for_chunk(vertices, graphs, alias_method_j, alias_method_q, walk_length,
-                                           amount_neighbours)
+                                           amount_neighbours, walk_seed(seed, walk_iter))
         walks.extend(walk)
         logging.info("Iteration {} executed.".format(walk_iter))
 
@@ -149,9 +165,9 @@ def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices
     save_random_walks(walks)
 
 
-def generate_random_walks(num_walks, walk_length, workers, vertices):
+def generate_random_walks(num_walks, walk_length, workers, vertices, seed=None):
     """
-    Execute and save random walks.
+    Execute and save random walks. With a seed, the walks file is identical across runs.
     """
     logging.info('Loading distances_nets on disk...')
 
@@ -169,20 +185,26 @@ def generate_random_walks(num_walks, walk_length, workers, vertices):
     if workers > num_walks:
         workers = num_walks
 
+    rng = random.Random(seed)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures = {}
         for walk_iter in range(num_walks):
-            random.shuffle(vertices)
-            job = executor.submit(exec_random_walks_for_chunk, vertices, graphs, alias_method_j, alias_method_q,
-                                  walk_length, amount_neighbours)
+            rng.shuffle(vertices)
+            # submit a copy: the executor pickles arguments lazily, so later shuffles of
+            # `vertices` could otherwise leak into iterations not yet sent to a worker
+            job = executor.submit(exec_random_walks_for_chunk, list(vertices), graphs, alias_method_j,
+                                  alias_method_q, walk_length, amount_neighbours, walk_seed(seed, walk_iter))
             futures[job] = walk_iter
         logging.info("Receiving results...")
+        walks_by_iter = {}
         for job in as_completed(futures):
-            walk = job.result()
             r = futures[job]
+            walks_by_iter[r] = job.result()
             logging.info("Iteration {} executed.".format(r))
-            walks.extend(walk)
             del futures[job]
+        # concatenate in iteration order so the walks file does not depend on scheduling
+        for walk_iter in sorted(walks_by_iter):
+            walks.extend(walks_by_iter[walk_iter])
 
     t1 = time()
     logging.info('RWs created. Time: {}m'.format((t1 - t0) / 60))

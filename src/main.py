@@ -16,6 +16,7 @@ vs. struc2vec (Ribeiro et al., KDD 2017):
 import argparse
 import logging
 import sys
+import zlib
 
 import graph
 from gensim.models import Word2Vec
@@ -65,6 +66,11 @@ def parse_args():
                         help='Treat the graph as undirected (default).')
     parser.set_defaults(directed=False)
 
+    parser.add_argument('--seed', type=int, default=None,
+                        help='Random seed for the random walks and word2vec. With a seed the random walks are '
+                             'identical across runs; the embedding is too if --workers 1 (multi-threaded '
+                             'word2vec training is not deterministic). Default: unseeded.')
+
     parser.add_argument('--OPT1', default=False, type=bool, help='optimization 1')
     parser.add_argument('--OPT2', default=False, type=bool, help='optimization 2')
     parser.add_argument('--OPT3', default=False, type=bool, help='optimization 3')
@@ -86,11 +92,18 @@ def read_embedding_set(args):
     return list(vertices)
 
 
+def stable_hash(s):
+    """String hash for word2vec vector initialisation that, unlike hash(), does not change between
+    Python processes (PYTHONHASHSEED)."""
+    return zlib.crc32(s.encode('utf-8'))
+
+
 def learn_embeddings(args):
     logging.info("Initializing creation of the representations...")
     walks = LineSentence('random_walks.txt')
+    seed_kwargs = {} if args.seed is None else {'seed': args.seed, 'hashfxn': stable_hash}
     model = Word2Vec(walks, vector_size=args.dimensions, window=args.window_size, min_count=0, hs=1, sg=1,
-                     workers=args.workers, epochs=args.iter)
+                     workers=args.workers, epochs=args.iter, **seed_kwargs)
     model.wv.save_word2vec_format(args.output)
     logging.info("Representations created.")
 
@@ -124,7 +137,7 @@ def exec_struc2vec(args):
 
     G.create_distances_network()
     G.preprocess_parameters_random_walk()
-    G.simulate_walks(args.num_walks, args.walk_length)
+    G.simulate_walks(args.num_walks, args.walk_length, seed=args.seed)
     return G
 
 

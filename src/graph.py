@@ -196,7 +196,7 @@ class Graph():
 
         return
 
-    def simulate_walks(self, num_walks, walk_length):
+    def simulate_walks(self, num_walks, walk_length, seed=None):
 
         vertices = list(self.G.keys()) if self.embedding_vertices is None else list(self.embedding_vertices)
 
@@ -205,14 +205,14 @@ class Graph():
 
             with ProcessPoolExecutor(max_workers=1) as executor:
                 job = executor.submit(generate_random_walks_large_graphs, num_walks, walk_length, self.workers,
-                                      vertices)
+                                      vertices, seed)
 
                 job.result()
 
         else:
 
             with ProcessPoolExecutor(max_workers=1) as executor:
-                job = executor.submit(generate_random_walks, num_walks, walk_length, self.workers, vertices)
+                job = executor.submit(generate_random_walks, num_walks, walk_length, self.workers, vertices, seed)
 
                 job.result()
 
