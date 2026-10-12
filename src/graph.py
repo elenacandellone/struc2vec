@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 
-"""Graph utilities."""
+"""Graph loading / container.
 
-from io import open
+Python 3 port of the struc2vec++ reference implementation
+(github.com/steenfatt/struc2vec). `load_edgelist` keeps an undirected skeleton
+for BFS traversal and, when directed, also the (optionally weighted) in/out
+degree of every node -- the structural signature used for directed graphs.
+"""
+
 from algorithms import *
 from algorithms_distances import *
 from collections import defaultdict
@@ -61,7 +66,7 @@ class Graph():
         degrees_sorted = set()
         G = self.G
 
-        vertices = G.keys() if self.embedding_vertices is None else self.embedding_vertices
+        vertices = list(G.keys()) if self.embedding_vertices is None else list(self.embedding_vertices)
 
         for v in vertices:
             degree = len(G[v])
@@ -140,7 +145,7 @@ class Graph():
         futures = {}
 
         G = self.G
-        vertices = G.keys() if self.embedding_vertices is None else self.embedding_vertices
+        vertices = list(G.keys()) if self.embedding_vertices is None else list(self.embedding_vertices)
         a_vertices = len(vertices)
 
         parts = self.workers
@@ -193,7 +198,7 @@ class Graph():
 
     def simulate_walks(self, num_walks, walk_length):
 
-        vertices = self.G.keys() if self.embedding_vertices is None else self.embedding_vertices
+        vertices = list(self.G.keys()) if self.embedding_vertices is None else list(self.embedding_vertices)
 
         # for large graphs, it is serially executed, because of memory use.
         if len(self.embedding_vertices if self.embedding_vertices is not None else self.G) > 500000:
@@ -283,7 +288,7 @@ def verify_consistency_(skeleton, is_directed):
     logging.info('Verifying consistency of edgelist ...')
     cleaned_skeleton = remove_duplicates_(skeleton)
     if is_directed:
-        for k, v in skeleton.iteritems():
+        for k, v in skeleton.items():
             if len(v) != len(cleaned_skeleton[k]):
                 print('WARNING: The edgelist file contains duplicates. Directed degrees will not be accurate.')
                 print('Example duplicates amongst the neighbours of node {}'.format(k))
@@ -296,7 +301,7 @@ def remove_duplicates_(graph_dict):
     Remove duplicates in the neighbourhood lists.
     """
     d = defaultdict(list)
-    for k in graph_dict.iterkeys():
+    for k in graph_dict.keys():
         d[k] = sorted(set(graph_dict[k]))  # sorted: returns a list
     return d
 
@@ -313,4 +318,4 @@ def number_of_edges_(graph_dict, is_directed):
     Returns the number of edges in a graph represented by a dictionary.
     """
     degree_sum = sum(len(graph_dict[node]) for node in graph_dict.keys())
-    return degree_sum if is_directed else degree_sum / 2
+    return degree_sum if is_directed else degree_sum // 2

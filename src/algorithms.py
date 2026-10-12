@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""Random-walk generation on the multilayer context graph.
+
+Python 3 port of the struc2vec++ reference implementation
+(github.com/steenfatt/struc2vec).
+"""
 from collections import deque
 import numpy as np
 import math, random
@@ -23,7 +28,7 @@ def generate_parameters_random_walk():
         logging.info('Executing layer {}...'.format(layer))
         weights = restore_variable_from_disk('distances_nets_weights-layer-' + str(layer))
 
-        for node, list_weights in weights.iteritems():
+        for node, list_weights in weights.items():
             if layer not in sum_weights:
                 sum_weights[layer] = 0
             if layer not in amount_edges:
@@ -52,7 +57,7 @@ def generate_parameters_random_walk():
 
         amount_neighbours[layer] = {}
 
-        for node, list_weights in weights.iteritems():
+        for node, list_weights in weights.items():
             cont_neighbours = 0
             for w in list_weights:
                 if w > average_weight[layer]:
@@ -78,16 +83,6 @@ def choose_neighbour(v, graphs, alias_method_j, alias_method_q, layer):
 def exec_random_walk(graphs, alias_method_j, alias_method_q, v, walk_length, amount_neighbours):
     """
     Execute a single random walk starting at a given node.
-    Args:
-        graphs:
-        alias_method_j:
-        alias_method_q:
-        v:
-        walk_length:
-        amount_neighbours:
-
-    Returns:
-
     """
     original_v = v
     t0 = time()
@@ -138,6 +133,7 @@ def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices
     t0 = time()
 
     walks = deque()
+    vertices = list(vertices)
 
     for walk_iter in range(num_walks):
         random.shuffle(vertices)
@@ -156,15 +152,6 @@ def generate_random_walks_large_graphs(num_walks, walk_length, workers, vertices
 def generate_random_walks(num_walks, walk_length, workers, vertices):
     """
     Execute and save random walks.
-    Args:
-        num_walks: int
-            number of walks to be performed on each node
-        walk_length: int
-            length of each random walk
-        workers: int
-            number of workers for parallel execution
-        vertices: list
-            starting nodes for the random walks
     """
     logging.info('Loading distances_nets on disk...')
 
@@ -177,6 +164,7 @@ def generate_random_walks(num_walks, walk_length, workers, vertices):
     t0 = time()
 
     walks = deque()
+    vertices = list(vertices)
 
     if workers > num_walks:
         workers = num_walks
@@ -203,13 +191,13 @@ def generate_random_walks(num_walks, walk_length, workers, vertices):
 
 
 def save_random_walks(walks):
-    with open('random_walks.txt', 'w') as file:
+    with open('random_walks.txt', 'w') as fh:
         for walk in walks:
             line = ''
             for v in walk:
                 line += str(v) + ' '
             line += '\n'
-            file.write(line)
+            fh.write(line)
 
 
 def prob_moveup(amount_neighbours):

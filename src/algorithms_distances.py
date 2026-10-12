@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""Structural-distance computation (directed: independent DTW over sorted
+in-degree and out-degree ring sequences).
+
+Python 3 port of the struc2vec++ reference implementation
+(github.com/steenfatt/struc2vec).
+"""
 from collections import deque
 import numpy as np
 import math
@@ -198,13 +204,13 @@ def _finalise_degree_seq(l, is_directed):
 def _finalise_degree_seq_compact(l_in, l_out, is_directed):
     if is_directed:
         list_d = []
-        for degree, freq in l_in.iteritems():
+        for degree, freq in l_in.items():
             list_d.append((degree, freq))
         list_d.sort(key=lambda x: x[0])
         lp_in = np.array(list_d, dtype=np.int32)
 
         list_d = []
-        for degree, freq in l_out.iteritems():
+        for degree, freq in l_out.items():
             list_d.append((degree, freq))
         list_d.sort(key=lambda x: x[0])
         lp_out = np.array(list_d, dtype=np.int32)
@@ -213,7 +219,7 @@ def _finalise_degree_seq_compact(l_in, l_out, is_directed):
 
     else:
         list_d = []
-        for degree, freq in l_in.iteritems():
+        for degree, freq in l_in.items():
             list_d.append((degree, freq))
         list_d.sort(key=lambda x: x[0])
         lp = np.array(list_d, dtype=np.int32)
@@ -352,7 +358,7 @@ def calc_distances(part, compact_degree=False, is_directed=False):
     else:
         dist_func = cost
 
-    for v1, nbs in vertices.iteritems():
+    for v1, nbs in vertices.items():
         lists_v1 = degree_list[v1]
 
         for v2 in nbs:
@@ -442,7 +448,7 @@ def _consolidate_distances(distances):
     """
     logging.info('Consolidating distances...')
 
-    for vertices, distance_by_layer in distances.iteritems():
+    for vertices, distance_by_layer in distances.items():
         layers = sorted(distance_by_layer.keys())
         start_layer = min(len(layers), 1)
         for layer in range(0, start_layer):
@@ -525,8 +531,8 @@ def generate_distances_network_part1(workers):
         logging.info('Executing part {}...'.format(part))
         distances = restore_variable_from_disk('distances-' + str(part))
 
-        for vertices, distance_by_layer in distances.iteritems():
-            for layer, distance in distance_by_layer.iteritems():
+        for vertices, distance_by_layer in distances.items():
+            for layer, distance in distance_by_layer.items():
                 vx = vertices[0]
                 vy = vertices[1]
                 if layer not in weights_distances:
@@ -535,7 +541,7 @@ def generate_distances_network_part1(workers):
 
         logging.info('Part {} executed.'.format(part))
 
-    for layer, values in weights_distances.iteritems():
+    for layer, values in weights_distances.items():
         save_variable_on_disk(values, 'weights_distances-layer-' + str(layer))
 
 
@@ -554,8 +560,8 @@ def generate_distances_network_part2(workers):
         logging.info('Executing part {}...'.format(part))
         distances = restore_variable_from_disk('distances-' + str(part))
 
-        for vertices, distance_by_layer in distances.iteritems():
-            for layer, distance in distance_by_layer.iteritems():
+        for vertices, distance_by_layer in distances.items():
+            for layer, distance in distance_by_layer.items():
                 vx = vertices[0]
                 vy = vertices[1]
                 if layer not in graphs:
@@ -568,7 +574,7 @@ def generate_distances_network_part2(workers):
                 graphs[layer][vy].append(vx)
         logging.info('Part {} executed.'.format(part))
 
-    for layer, values in graphs.iteritems():
+    for layer, values in graphs.items():
         save_variable_on_disk(values, 'graphs-layer-' + str(layer))
 
 
@@ -588,7 +594,7 @@ def generate_distances_network_part3():
         alias_method_q = {}
         weights = {}
 
-        for v, neighbors in graphs.iteritems():
+        for v, neighbors in graphs.items():
             e_list = deque()
             sum_w = 0.0
 
@@ -683,7 +689,7 @@ def generate_distances_network(workers):
     t0 = time()
     logging.info('Creating distance network...')
 
-    os.system("rm " + return_path_struc2vec() + "/../pickles/weights_distances-layer-*.pickle")
+    os.system("rm -f " + folder_pickles + "weights_distances-layer-*.pickle")
     with ProcessPoolExecutor(max_workers=1) as executor:
         job = executor.submit(generate_distances_network_part1, workers)
         job.result()
@@ -692,7 +698,7 @@ def generate_distances_network(workers):
     logging.info('- Time - part 1: {}s'.format(t))
 
     t0 = time()
-    os.system("rm " + return_path_struc2vec() + "/../pickles/graphs-layer-*.pickle")
+    os.system("rm -f " + folder_pickles + "graphs-layer-*.pickle")
     with ProcessPoolExecutor(max_workers=1) as executor:
         job = executor.submit(generate_distances_network_part2, workers)
         job.result()
@@ -704,9 +710,9 @@ def generate_distances_network(workers):
     logging.info('Transforming distances into weights...')
 
     t0 = time()
-    os.system("rm " + return_path_struc2vec() + "/../pickles/distances_nets_weights-layer-*.pickle")
-    os.system("rm " + return_path_struc2vec() + "/../pickles/alias_method_j-layer-*.pickle")
-    os.system("rm " + return_path_struc2vec() + "/../pickles/alias_method_q-layer-*.pickle")
+    os.system("rm -f " + folder_pickles + "distances_nets_weights-layer-*.pickle")
+    os.system("rm -f " + folder_pickles + "alias_method_j-layer-*.pickle")
+    os.system("rm -f " + folder_pickles + "alias_method_q-layer-*.pickle")
     with ProcessPoolExecutor(max_workers=1) as executor:
         job = executor.submit(generate_distances_network_part3)
         job.result()
@@ -747,7 +753,7 @@ def alias_setup(probs):
     """
     K = len(probs)
     q = np.zeros(K)
-    J = np.zeros(K, dtype=np.int)
+    J = np.zeros(K, dtype=np.int64)
 
     smaller = []
     larger = []
